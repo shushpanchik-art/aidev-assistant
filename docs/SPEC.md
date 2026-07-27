@@ -248,14 +248,14 @@ executor откладывает pytest и предупреждает в UI.
 0.1 Своп 2→4 ГБ (полные пути /sbin/*).
 0.2 Пользователь aidev + каталоги /opt/aidev/{sandbox,mirrors}.
 0.3 sudoers: aidev только systemctl * aidev-sandbox-run.service.
-0.4 venv + requirements.
+0.4 venv + requirements. ✅ (main 62beff3)
 Этап 1 — MVP
 
-1.1 Форк ai/gemini.py + системный промпт разработчика.
+1.1 Форк ai/gemini.py + системный промпт разработчика. ⏳ (gemini.py готов 62beff3; prompts.py — TODO)
 1.2 Executor (allow-list) + песочница (snapshot без секретов).
 1.3 Agent Core (план→генерация→gate→фикс-цикл).
 1.4 FastAPI: 3 экрана + auth-токен.
-1.5 SQLite (tasks/ai_usage/gate_runs).
+1.5 SQLite (tasks/ai_usage/gate_runs). ⏳ (schema.sql готов 62beff3; database.py — TODO)
 1.6 Кнопка «Создать PR» через gh от aidev.
 1.7 systemd + тесты executor/sandbox/gate.
 
