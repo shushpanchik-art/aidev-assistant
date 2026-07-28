@@ -254,7 +254,7 @@ executor откладывает pytest и предупреждает в UI.
 1.1 Форк ai/gemini.py + системный промпт разработчика. ✅ (gemini.py 62beff3; ai/prompts.py: SYSTEM_DEVELOPER + 6 билдеров, tests/test_prompts.py 9 passed)
 1.2 Executor (allow-list) + песочница (snapshot без секретов).
 1.3 Agent Core (план→генерация→gate→фикс-цикл).
-1.4 FastAPI: 3 экрана + auth-токен.
+1.4 FastAPI: 3 экрана + auth-токен. ✅ (web/app.py: auth Bearer/cookie по WEB_AUTH_TOKEN, экраны новая-задача/история/задача/настройки, POST /api/task → prepare_workspace + solve_task в потоке → шаги/diff в БД; tests/test_web.py 8 passed — 401 без токена, healthz без auth, мок solve_task, отказ чужого проекта)
 1.5 SQLite (tasks/ai_usage/gate_runs). ✅ (schema.sql + database.py CRUD + tests/test_schema.py, 6 passed)
 1.6 Кнопка «Создать PR» через gh от aidev.
 1.7 systemd + тесты executor/sandbox/gate.
