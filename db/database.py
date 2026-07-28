@@ -60,12 +60,14 @@ async def update_task_status(
     finished: bool = False,
     db_path: str = DB_PATH,
 ) -> None:
+    # fin — фиксированный литерал из кода (не пользовательский ввод),
+    # SQL-инъекция невозможна; параметры передаются через ? плейсхолдеры.
     fin = "datetime('now')" if finished else "finished_at"
     async with aiosqlite.connect(db_path) as db:
         await db.execute(
             f"UPDATE tasks SET status = ?, "
             f"model_used = COALESCE(?, model_used), "
-            f"finished_at = {fin} WHERE id = ?",
+            f"finished_at = {fin} WHERE id = ?",  # nosec B608
             (status, model_used, task_id),
         )
         await db.commit()
