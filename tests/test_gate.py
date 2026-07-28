@@ -11,6 +11,7 @@ import os
 os.environ.setdefault("WEB_AUTH_TOKEN", "test-token")
 
 import pytest  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 from agent import executor, gate  # noqa: E402
 
@@ -34,6 +35,14 @@ def _write(task_dir, rel, content):
 
 # --- ast --------------------------------------------------------------
 
+
+_HAS_VENV_BINS = (
+    Path(executor._VENV_BIN, "ruff").exists()
+    and Path(executor._VENV_BIN, "python").exists()
+)
+_skip_no_venv = pytest.mark.skipif(
+    not _HAS_VENV_BINS, reason="нет venv/bin (напр. CI): реальный запуск инструментов недоступен"
+)
 
 def test_ast_green_on_valid(task):
     _write(task, "mod.py", "x = 1\n")
@@ -71,6 +80,7 @@ def test_ruff_red_on_violation(task):
     assert "ruff" in res.red_tools
 
 
+@_skip_no_venv
 def test_clean_code_passes_lint(task):
     _write(task, "ok.py", '"""Docstring."""\n\n\ndef f() -> int:\n    return 1\n')
     res = gate.run_gate(1)
@@ -81,12 +91,14 @@ def test_clean_code_passes_lint(task):
 # --- smoke ------------------------------------------------------------
 
 
+@_skip_no_venv
 def test_smoke_green_on_importable(task):
     _write(task, "good.py", "VALUE = 42\n")
     step = gate._step_smoke(1, ["good.py"])
     assert step.passed, step.output
 
 
+@_skip_no_venv
 def test_smoke_red_on_import_error(task):
     _write(task, "boom.py", "raise RuntimeError('boom at import')\n")
     step = gate._step_smoke(1, ["boom.py"])
