@@ -255,7 +255,7 @@ executor откладывает pytest и предупреждает в UI.
 1.2 Executor (allow-list) + песочница (snapshot без секретов).
 1.3 Agent Core (план→генерация→gate→фикс-цикл).
 1.4 FastAPI: 3 экрана + auth-токен.
-1.5 SQLite (tasks/ai_usage/gate_runs). ⏳ (schema.sql готов 62beff3; database.py — TODO)
+1.5 SQLite (tasks/ai_usage/gate_runs). ✅ (schema.sql + database.py CRUD + tests/test_schema.py, 6 passed)
 1.6 Кнопка «Создать PR» через gh от aidev.
 1.7 systemd + тесты executor/sandbox/gate.
 
