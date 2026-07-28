@@ -14,7 +14,7 @@ os.environ.setdefault("WEB_AUTH_TOKEN", "test-token")
 import pytest  # noqa: E402
 from pathlib import Path  # noqa: E402
 
-from agent import core, executor, gate  # noqa: E402
+from agent import core, executor  # noqa: E402
 from ai import gemini  # noqa: E402
 
 
