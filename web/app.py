@@ -1,6 +1,3 @@
-Bash
-
-cat > web/app.py << 'PYEOF'
 """FastAPI веб-интерфейс агента (SPEC §8, §1.4).
 
 Аутентификация: заголовок ``Authorization: Bearer <WEB_AUTH_TOKEN>`` ИЛИ
@@ -21,7 +18,6 @@ from __future__ import annotations
 import asyncio
 import html
 import logging
-from typing import Any
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
