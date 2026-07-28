@@ -251,7 +251,7 @@ executor откладывает pytest и предупреждает в UI.
 0.4 venv + requirements. ✅ (main 62beff3)
 Этап 1 — MVP
 
-1.1 Форк ai/gemini.py + системный промпт разработчика. ⏳ (gemini.py готов 62beff3; prompts.py — TODO)
+1.1 Форк ai/gemini.py + системный промпт разработчика. ✅ (gemini.py 62beff3; ai/prompts.py: SYSTEM_DEVELOPER + 6 билдеров, tests/test_prompts.py 9 passed)
 1.2 Executor (allow-list) + песочница (snapshot без секретов).
 1.3 Agent Core (план→генерация→gate→фикс-цикл).
 1.4 FastAPI: 3 экрана + auth-токен.
