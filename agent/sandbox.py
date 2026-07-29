@@ -92,6 +92,26 @@ def _git(args: list[str], *, cwd: Path) -> GitResult:
     return GitResult(proc.returncode, proc.stdout, proc.stderr)
 
 
+def _gh(args: list[str], *, cwd: Path) -> GitResult:
+    """Запуск gh напрямую (доверенный оркестратор), shell=False."""
+    proc = subprocess.run(  # nosec B603 B607 -- gh, shell=False, args из кода
+        ["gh", *args],
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return GitResult(proc.returncode, proc.stdout, proc.stderr)
+
+
+def _github_repo(origin_url: str) -> str:
+    """owner/repo из git@github.com:owner/repo.git или https-URL."""
+    m = re.search(r"github\.com[:/]([^/]+/[^/]+?)(?:\.git)?$", origin_url.strip())
+    if not m:
+        raise SandboxError(f"Не github origin: {origin_url!r}")
+    return m.group(1)
+
+
 # --- зеркало --------------------------------------------------------------
 
 def mirror_path(project_path: str) -> Path:
@@ -197,3 +217,69 @@ def cleanup(task_id: int) -> None:
     if dest == sandbox_root():
         raise SandboxError("Отказ: cleanup не может удалить корень песочницы")
     shutil.rmtree(dest, ignore_errors=True)
+
+
+# --- ветка + PR (SPEC L2) --------------------------------------------------
+
+_BRANCH_RE = re.compile(r"[^A-Za-z0-9._/-]")
+
+
+def create_pull_request(
+    task_id: int,
+    project_path: str,
+    title: str,
+    body: str,
+    *,
+    base: str = "main",
+) -> str:
+    """Ветка aidev/task-<id>, коммит правок, push, gh pr create. Возврат URL."""
+    _assert_allowed_project(project_path)
+    dest = _assert_within_sandbox(task_dir(task_id))
+    if not dest.is_dir():
+        raise SandboxError(f"Нет рабочей копии для задачи {task_id}")
+
+    origin = _git(["remote", "get-url", "origin"], cwd=Path(project_path))
+    if origin.returncode != 0:
+        raise SandboxError(f"origin проекта не найден: {origin.stderr.strip()}")
+    origin_url = origin.stdout.strip()
+    repo = _github_repo(origin_url)
+
+    branch = _BRANCH_RE.sub("-", f"aidev/task-{task_id}")
+
+    _git(["add", "-A"], cwd=dest)
+    status = _git(["status", "--porcelain"], cwd=dest)
+    if not status.stdout.strip():
+        raise SandboxError("Нет изменений для PR (diff пуст).")
+
+    _git(["checkout", "-B", branch], cwd=dest)
+    commit = _git(
+        ["-c", "user.email=aidev@local", "-c", "user.name=aidev",
+         "commit", "-m", title],
+        cwd=dest,
+    )
+    if commit.returncode != 0 and "nothing to commit" not in commit.stdout:
+        raise SandboxError(
+            f"git commit: {commit.stderr.strip() or commit.stdout.strip()}"
+        )
+
+    _git(["remote", "remove", "github"], cwd=dest)
+    add_rem = _git(["remote", "add", "github", origin_url], cwd=dest)
+    if add_rem.returncode != 0:
+        raise SandboxError(f"git remote add github: {add_rem.stderr.strip()}")
+
+    push = _git(["push", "-u", "github", branch, "--force"], cwd=dest)
+    if push.returncode != 0:
+        raise SandboxError(f"git push: {push.stderr.strip()}")
+
+    pr = _gh(
+        ["pr", "create", "--repo", repo, "--head", branch,
+         "--base", base, "--title", title, "--body", body],
+        cwd=dest,
+    )
+    if pr.returncode != 0:
+        raise SandboxError(
+            f"gh pr create: {pr.stderr.strip() or pr.stdout.strip()}"
+        )
+
+    lines = [ln for ln in pr.stdout.strip().splitlines() if ln.strip()]
+    return lines[-1] if lines else f"https://github.com/{repo}/pulls"

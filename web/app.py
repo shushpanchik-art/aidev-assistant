@@ -170,9 +170,25 @@ async def task_view(task_id: int) -> Response:
     ) or "<li class='muted'>Шагов нет.</li>"
     status = html.escape(str(task.get("status", "")))
     cls = "ok" if status in {"done", "success"} else "muted"
+    pr_url = task.get("pr_url")
+    if pr_url:
+        pr_html = (
+            f"<p>Pull Request: "
+            f"<a href='{html.escape(str(pr_url))}' target='_blank' rel='noopener'>"
+            f"{html.escape(str(pr_url))}</a></p>"
+        )
+    elif task.get("status") in {"done", "success"}:
+        pr_html = (
+            f"<form method='post' action='/api/task/{task_id}/pr'>"
+            "<button type='submit'>🚀 Создать Pull Request</button>"
+            "</form>"
+        )
+    else:
+        pr_html = "<p class='muted'>PR доступен после успешного прохождения.</p>"
     body = (
         f"<p>Статус: <span class='{cls}'>{status}</span></p>"
         f"<p>Проект: {html.escape(str(task.get('project', '')))}</p>"
+        f"{pr_html}"
         f"<h2>📝 Что сделано</h2><ul>{steps_html}</ul>"
     )
     return HTMLResponse(_page(f"Задача #{task_id}", body))
@@ -246,6 +262,39 @@ async def api_task(
         model_used=outcome.model,
         finished=True,
     )
+    return RedirectResponse(f"/task/{task_id}", status_code=303)
+
+
+@app.post("/api/task/{task_id}/pr", dependencies=[Depends(require_auth)])
+async def api_task_pr(task_id: int) -> Response:
+    task = await database.get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="task not found")
+    project = str(task.get("project", ""))
+    if project not in config.ALLOWED_PROJECTS:
+        raise HTTPException(status_code=400, detail="project not allowed")
+    if task.get("status") not in {"done", "success"}:
+        raise HTTPException(status_code=409, detail="task not ready for PR")
+    if task.get("pr_url"):
+        return RedirectResponse(f"/task/{task_id}", status_code=303)
+
+    title = f"aidev: task #{task_id}"
+    prompt = str(task.get("prompt", ""))
+    pr_body = f"Автоматический PR агента AIDEV.\n\nЗадача:\n{prompt}"
+    try:
+        pr_url = await asyncio.to_thread(
+            sandbox.create_pull_request,
+            task_id,
+            project,
+            title,
+            pr_body,
+        )
+        branch = f"aidev/task-{task_id}"
+        await database.set_task_pr(task_id, branch=branch, pr_url=pr_url)
+    except Exception as exc:  # noqa: BLE001 — ошибку показываем в UI
+        logger.exception("PR for task %s failed", task_id)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
     return RedirectResponse(f"/task/{task_id}", status_code=303)
 
 

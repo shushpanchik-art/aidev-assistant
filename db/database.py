@@ -20,7 +20,17 @@ async def init_db(db_path: str = DB_PATH) -> None:
     sql = SCHEMA_PATH.read_text(encoding="utf-8")
     async with aiosqlite.connect(db_path) as db:
         await db.executescript(sql)
+        await _migrate(db)
         await db.commit()
+
+
+async def _migrate(db: aiosqlite.Connection) -> None:
+    """Идемпотентно добавить недостающие колонки в существующие БД."""
+    cur = await db.execute("PRAGMA table_info(tasks)")
+    cols = {row[1] for row in await cur.fetchall()}
+    for col in ("branch", "pr_url"):
+        if col not in cols:
+            await db.execute(f"ALTER TABLE tasks ADD COLUMN {col} TEXT")
 
 
 def _row_to_dict(row: aiosqlite.Row | None) -> dict[str, Any] | None:
@@ -69,6 +79,22 @@ async def update_task_status(
             f"model_used = COALESCE(?, model_used), "
             f"finished_at = {fin} WHERE id = ?",  # nosec B608
             (status, model_used, task_id),
+        )
+        await db.commit()
+
+
+async def set_task_pr(
+    task_id: int,
+    branch: str,
+    pr_url: str,
+    *,
+    db_path: str = DB_PATH,
+) -> None:
+    """Сохранить ветку и ссылку на PR для задачи."""
+    async with aiosqlite.connect(db_path) as db:
+        await db.execute(
+            "UPDATE tasks SET branch = ?, pr_url = ? WHERE id = ?",
+            (branch, pr_url, task_id),
         )
         await db.commit()
 
