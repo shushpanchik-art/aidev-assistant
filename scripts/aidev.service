@@ -1,0 +1,22 @@
+[Unit]
+Description=AIDEV Assistant web agent (FastAPI/uvicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=aidev
+Group=aidev
+WorkingDirectory=/opt/aidev
+EnvironmentFile=/opt/aidev/.env
+ExecStart=/opt/aidev/venv/bin/uvicorn web.app:app --host 127.0.0.1 --port 8090
+Restart=always
+RestartSec=5
+MemoryMax=400M
+MemorySwapMax=0
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aidev
+
+[Install]
+WantedBy=multi-user.target
