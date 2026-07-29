@@ -24,6 +24,7 @@ def client(db_path, monkeypatch):
     for name in (
         "create_task", "get_task", "update_task_status", "list_tasks",
         "add_step", "get_steps", "add_diff", "today_cost_usd",
+        "set_task_pr",
     ):
         orig = getattr(database, name)
 
@@ -145,3 +146,69 @@ async def test_create_task_rejects_foreign_project(client):
             },
         )
     assert r.status_code == 400
+
+
+
+@pytest.mark.asyncio
+async def test_pr_button_visible_when_done(client, db_path):
+    project = config.ALLOWED_PROJECTS[0]
+    tid = await database.create_task(project, "p", autonomy_level=1, db_path=db_path)
+    await database.update_task_status(tid, "done", db_path=db_path)
+    async with client as c:
+        r = await c.get(
+            f"/task/{tid}", headers={"Authorization": "Bearer test-token"}
+        )
+    assert r.status_code == 200
+    assert f"/api/task/{tid}/pr" in r.text
+    assert "Создать Pull Request" in r.text
+
+
+@pytest.mark.asyncio
+async def test_pr_button_hidden_when_pending(client, db_path):
+    project = config.ALLOWED_PROJECTS[0]
+    tid = await database.create_task(project, "p", autonomy_level=1, db_path=db_path)
+    async with client as c:
+        r = await c.get(
+            f"/task/{tid}", headers={"Authorization": "Bearer test-token"}
+        )
+    assert r.status_code == 200
+    assert f"/api/task/{tid}/pr" not in r.text
+
+
+@pytest.mark.asyncio
+async def test_pr_create_success_mocked(client, db_path, monkeypatch):
+    project = config.ALLOWED_PROJECTS[0]
+    tid = await database.create_task(project, "p", autonomy_level=1, db_path=db_path)
+    await database.update_task_status(tid, "done", db_path=db_path)
+
+    def fake_pr(task_id, project_path, title, body, *, base="main"):
+        return "https://github.com/o/r/pull/7"
+
+    monkeypatch.setattr(sandbox, "create_pull_request", fake_pr)
+    monkeypatch.setattr(webapp.sandbox, "create_pull_request", fake_pr)
+
+    async with client as c:
+        r = await c.post(
+            f"/api/task/{tid}/pr",
+            headers={"Authorization": "Bearer test-token"},
+            follow_redirects=False,
+        )
+    assert r.status_code == 303
+    assert r.headers["location"] == f"/task/{tid}"
+
+    task = await database.get_task(tid, db_path=db_path)
+    assert task is not None
+    assert task["pr_url"] == "https://github.com/o/r/pull/7"
+    assert task["branch"] == f"aidev/task-{tid}"
+
+
+@pytest.mark.asyncio
+async def test_pr_create_rejects_pending(client, db_path):
+    project = config.ALLOWED_PROJECTS[0]
+    tid = await database.create_task(project, "p", autonomy_level=1, db_path=db_path)
+    async with client as c:
+        r = await c.post(
+            f"/api/task/{tid}/pr",
+            headers={"Authorization": "Bearer test-token"},
+        )
+    assert r.status_code == 409

@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     status          TEXT NOT NULL DEFAULT 'pending',
     autonomy_level  INTEGER NOT NULL DEFAULT 1,
     model_used      TEXT,
+    branch          TEXT,
+    pr_url          TEXT,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     finished_at     TEXT
 );
