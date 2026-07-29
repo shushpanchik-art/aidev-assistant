@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily AIDEV full-project offsite backup at 23:40 MSK
+
+[Timer]
+OnCalendar=*-*-* 23:40:00
+Persistent=true
+RandomizedDelaySec=2min
+Unit=aidev-backup-full-offsite.service
+
+[Install]
+WantedBy=timers.target

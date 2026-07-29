@@ -1,0 +1,17 @@
+[Unit]
+Description=AIDEV full-project offsite backup to Yandex.Disk (rclone)
+Documentation=file:/opt/aidev/scripts/backup_full_offsite.sh
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/opt/aidev/scripts/backup_full_offsite.sh
+StandardOutput=append:/opt/aidev/logs/backup-full-offsite.log
+StandardError=append:/opt/aidev/logs/backup-full-offsite.log
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

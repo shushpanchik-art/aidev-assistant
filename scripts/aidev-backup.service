@@ -1,0 +1,16 @@
+[Unit]
+Description=AIDEV daily local SQLite backup (aidev.db)
+Documentation=file:/opt/aidev/scripts/backup.sh
+After=network.target
+
+[Service]
+Type=oneshot
+User=shushpanchik_art
+Group=shushpanchik_art
+WorkingDirectory=/opt/aidev
+ExecStart=/opt/aidev/scripts/backup.sh
+StandardOutput=append:/opt/aidev/logs/backup.log
+StandardError=append:/opt/aidev/logs/backup.log
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
