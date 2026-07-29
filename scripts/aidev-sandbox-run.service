@@ -1,0 +1,24 @@
+[Unit]
+Description=AIDEV sandbox test-run (L3 auto-deploy-sandbox, NOT prod)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=aidev
+Group=aidev
+WorkingDirectory=/opt/aidev/sandbox
+EnvironmentFile=-/opt/aidev/.env
+# ЗАГЛУШКА: функция тестового запуска кода L3 ещё не реализована (Этап 2).
+# Заменить на реальную команду, когда появится sandbox-runner.
+ExecStart=/opt/aidev/venv/bin/python -m http.server 8091 --bind 127.0.0.1
+Restart=on-failure
+RestartSec=5
+MemoryMax=300M
+MemorySwapMax=0
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aidev-sandbox-run
+
+[Install]
+WantedBy=multi-user.target
