@@ -9,3 +9,6 @@ sandbox/*/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# runtime logs (backups etc.)
+logs/
