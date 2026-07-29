@@ -67,6 +67,10 @@ MEM_MIN_AVAIL_MB = _int("MEM_MIN_AVAIL_MB", 120)
 # --- Projects (allow-list путей) ---
 ALLOWED_PROJECTS = _list("ALLOWED_PROJECTS", "/opt/SMOKI/bot,/opt/smoktolk/bot")
 
+# --- Alerts (Telegram) ---
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+
 # --- DB / логи ---
 DB_PATH = os.getenv("DB_PATH", "/opt/aidev/aidev.db")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
