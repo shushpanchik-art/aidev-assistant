@@ -15,8 +15,20 @@ import config
 logger = logging.getLogger(__name__)
 
 _API_TEMPLATE = "https://api.telegram.org/bot{token}/sendMessage"
-_TIMEOUT_S = 10.0
+_TIMEOUT_S = 30.0
 _MAX_LEN = 4096  # лимит Telegram на длину текста сообщения
+
+
+def _mask(text: str) -> str:
+    """Вырезать секреты (токен бота) из строки перед логом/исключением.
+
+    httpx включает полный URL (с токеном) в текст HTTPStatusError, поэтому
+    любой наружу выходящий текст обязан пройти через эту функцию.
+    """
+    token = config.TELEGRAM_BOT_TOKEN
+    if token:
+        text = text.replace(token, "***TOKEN***")
+    return text
 
 
 class AlertError(RuntimeError):
@@ -57,9 +69,10 @@ async def send_alert(text: str, *, raise_on_error: bool = False) -> bool:
             resp = await client.post(url, json=payload)
             resp.raise_for_status()
     except httpx.HTTPError as exc:
-        logger.warning("telegram alert failed: %s", exc)
+        safe_msg = _mask(str(exc))
+        logger.warning("telegram alert failed: %s", safe_msg)
         if raise_on_error:
-            raise AlertError(str(exc)) from exc
+            raise AlertError(safe_msg) from exc
         return False
     return True
 
