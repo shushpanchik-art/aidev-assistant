@@ -1,0 +1,11 @@
+[Unit]
+Description=AIDEV daily local SQLite backup at 03:30 MSK
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=2min
+Unit=aidev-backup.service
+
+[Install]
+WantedBy=timers.target
