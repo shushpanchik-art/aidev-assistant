@@ -252,12 +252,12 @@ executor откладывает pytest и предупреждает в UI.
 Этап 1 — MVP
 
 1.1 Форк ai/gemini.py + системный промпт разработчика. ✅ (gemini.py 62beff3; ai/prompts.py: SYSTEM_DEVELOPER + 6 билдеров, tests/test_prompts.py 9 passed)
-1.2 Executor (allow-list) + песочница (snapshot без секретов).
-1.3 Agent Core (план→генерация→gate→фикс-цикл).
+1.2 Executor (allow-list) + песочница (snapshot без секретов). ✅ (agent/executor.py: run() allow-list, is_within_sandbox, available_memory_mb ресурс-гвард, _minimal_env; agent/sandbox.py: prepare_workspace, create_mirror, _strip_secrets, read/write_file, collect_diff, cleanup; tests/test_executor.py + test_sandbox.py)
+1.3 Agent Core (план→генерация→gate→фикс-цикл). ✅ (agent/core.py: solve_task, extract_code, TaskOutcome; agent/gate.py: run_gate ast/ruff/mypy/bandit/pytest/smoke + log_gate_to_db; tests/test_agent_core.py + test_gate.py)
 1.4 FastAPI: 3 экрана + auth-токен. ✅ (web/app.py: auth Bearer/cookie по WEB_AUTH_TOKEN, экраны новая-задача/история/задача/настройки, POST /api/task → prepare_workspace + solve_task в потоке → шаги/diff в БД; tests/test_web.py 8 passed — 401 без токена, healthz без auth, мок solve_task, отказ чужого проекта)
 1.5 SQLite (tasks/ai_usage/gate_runs). ✅ (schema.sql + database.py CRUD + tests/test_schema.py, 6 passed)
 1.6 Кнопка «Создать PR» через gh от aidev. ✅ (PR #14, a77e06f: web POST /api/task/{id}/pr + кнопка на странице задачи; sandbox.create_pull_request — ветка aidev/task-<id>, push, gh pr create; db branch/pr_url + set_task_pr + миграция; tests/test_web.py 75 passed)
-1.7 systemd + тесты executor/sandbox/gate.
+1.7 systemd + тесты executor/sandbox/gate. ⏳ ЧАСТИЧНО: тесты executor/sandbox/gate готовы (48 passed), systemd-юниты aidev.service / aidev-sandbox-run.service ЕЩЁ НЕ созданы (scripts/ пуст).
 
 Этап 2 (за рамками MVP)
 
