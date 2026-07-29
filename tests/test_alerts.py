@@ -33,6 +33,41 @@ def test_truncate_long():
     assert out.endswith("…(обрезано)")
 
 
+def test_mask_removes_token(monkeypatch):
+    monkeypatch.setattr(config, "TELEGRAM_BOT_TOKEN", "SECRET123")
+    raw = "url https://api.telegram.org/botSECRET123/sendMessage failed"
+    out = telegram._mask(raw)
+    assert "SECRET123" not in out
+    assert "***TOKEN***" in out
+
+
+def test_mask_empty_token_noop(monkeypatch):
+    monkeypatch.setattr(config, "TELEGRAM_BOT_TOKEN", "")
+    assert telegram._mask("plain text") == "plain text"
+
+
+@pytest.mark.asyncio
+async def test_send_alert_error_text_has_no_token(monkeypatch):
+    """AlertError не должен содержать токен даже при HTTP-ошибке."""
+    monkeypatch.setattr(config, "TELEGRAM_BOT_TOKEN", "SECRET123")
+    monkeypatch.setattr(config, "TELEGRAM_CHAT_ID", "123")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400)
+
+    transport = httpx.MockTransport(handler)
+    orig = httpx.AsyncClient
+
+    def fake_client(*args, **kwargs):
+        kwargs["transport"] = transport
+        return orig(*args, **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", fake_client)
+    with pytest.raises(telegram.AlertError) as excinfo:
+        await telegram.send_alert("hi", raise_on_error=True)
+    assert "SECRET123" not in str(excinfo.value)
+
+
 def test_format_crash():
     msg = telegram.format_crash("web.run_task", ValueError("boom"))
     assert "web.run_task" in msg
