@@ -7,6 +7,7 @@
 Публичное API:
     extract_code(text)      — вытащить код из markdown-блока ответа модели.
     solve_task(...)         — прогнать полный цикл над одним файлом задачи.
+    solve_task_auto(...)    — агент сам выбирает файлы (мультифайловый режим).
     TaskOutcome             — результат (успех, итерации, финальный gate, diff).
 """
 from __future__ import annotations
@@ -15,7 +16,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 
-from agent import gate, sandbox
+from agent import explorer, gate, sandbox
 from ai import gemini, prompts
 
 logger = logging.getLogger(__name__)
@@ -122,6 +123,132 @@ def solve_task(
     else:
         steps.append(
             f"Gate остался красным после {iterations} итераций: {result.summary()}"
+        )
+
+    diff = ""
+    try:
+        diff = sandbox.collect_diff(task_id)
+    except sandbox.SandboxError as e:  # noqa: BLE001
+        logger.warning("collect_diff не удался: %s", e)
+
+    return TaskOutcome(
+        success=result.passed,
+        iterations=iterations,
+        gate=result,
+        diff=diff,
+        model=model_used,
+        input_tokens=in_tok,
+        output_tokens=out_tok,
+        steps=steps,
+    )
+
+
+
+def solve_task_auto(
+    task_id: int,
+    task: str,
+    *,
+    model: str = "flash",
+    max_iterations: int = 4,
+    max_explore_files: int = 8,
+) -> TaskOutcome:
+    """Автономный мультифайловый цикл: агент сам выбирает и правит файлы.
+
+    Предполагается, что рабочая копия уже развёрнута
+    (sandbox.prepare_workspace).
+
+    1. Строит дерево проекта, просит модель выбрать релевантные файлы
+       (explore_prompt -> parse_files_list).
+    2. Читает выбранные файлы, просит внести правки блоками === FILE: ===
+       (multifile_edit_prompt -> parse_file_blocks), записывает каждый.
+    3. Фикс-цикл по выводу gate (multifile_fix_prompt), пока красно и
+       остались итерации.
+    4. Возвращает TaskOutcome (тот же тип, что и solve_task).
+    """
+    steps: list[str] = []
+    in_tok = 0
+    out_tok = 0
+    model_used = model
+
+    # --- 1. Разведка: какие файлы читать ---
+    tree = explorer.project_tree(task_id)
+    exp = gemini.generate_text(
+        prompts.explore_prompt(task, tree),
+        model=model,
+        system_instruction=prompts.SYSTEM_DEVELOPER,
+    )
+    in_tok += exp.input_tokens
+    out_tok += exp.output_tokens
+    model_used = exp.model
+    chosen = prompts.parse_files_list(exp.text)[:max_explore_files]
+    steps.append(f"Модель выбрала файлы: {chosen or '(ничего)'}")
+
+    files = explorer.read_many(task_id, chosen) if chosen else {}
+
+    # --- 2. Первичная мультифайловая правка ---
+    edit = gemini.generate_text(
+        prompts.multifile_edit_prompt(task, explorer.files_block(files)),
+        model=model,
+        system_instruction=prompts.SYSTEM_DEVELOPER,
+    )
+    in_tok += edit.input_tokens
+    out_tok += edit.output_tokens
+    model_used = edit.model
+    blocks = prompts.parse_file_blocks(edit.text)
+
+    if not blocks:
+        steps.append("Модель не вернула ни одного файла — прекращаю.")
+        result = gate.run_gate(task_id)
+        return TaskOutcome(
+            success=False,
+            iterations=0,
+            gate=result,
+            diff="",
+            model=model_used,
+            input_tokens=in_tok,
+            output_tokens=out_tok,
+            steps=steps,
+        )
+
+    for rel, content in blocks.items():
+        sandbox.write_file(task_id, rel, content.rstrip() + "\n")
+    steps.append(f"Записаны файлы: {list(blocks)}")
+
+    result = gate.run_gate(task_id)
+    iterations = 0
+    while not result.passed and iterations < max_iterations:
+        iterations += 1
+        steps.append(
+            f"Gate красный ({', '.join(result.red_tools)}); "
+            f"фикс-итерация {iterations}"
+        )
+        # свежее состояние всех затронутых файлов
+        current_files = explorer.read_many(task_id, list(blocks))
+        fix = gemini.generate_text(
+            prompts.multifile_fix_prompt(
+                task, explorer.files_block(current_files), _gate_output(result)
+            ),
+            model=model,
+            system_instruction=prompts.SYSTEM_DEVELOPER,
+        )
+        in_tok += fix.input_tokens
+        out_tok += fix.output_tokens
+        model_used = fix.model
+        fix_blocks = prompts.parse_file_blocks(fix.text)
+        if not fix_blocks:
+            steps.append("Фикс без файлов — прерываю цикл.")
+            break
+        for rel, content in fix_blocks.items():
+            sandbox.write_file(task_id, rel, content.rstrip() + "\n")
+            blocks[rel] = content
+        result = gate.run_gate(task_id)
+
+    if result.passed:
+        steps.append(f"Gate зелёный: {result.summary()}")
+    else:
+        steps.append(
+            f"Gate остался красным после {iterations} итераций: "
+            f"{result.summary()}"
         )
 
     diff = ""
