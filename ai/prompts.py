@@ -4,6 +4,10 @@ ID моделей — только через config/.env, здесь не ха�
 Все функции возвращают str; секреты/ключи сюда не попадают.
 """
 
+import re
+import json
+
+
 # ── Системный промпт (роль и обязательства) ───────────────────────
 SYSTEM_DEVELOPER = (
     "Ты — senior Python-разработчик, работающий как автономный агент "
@@ -123,3 +127,99 @@ def explain_prompt(task: str, diff_summary: str) -> str:
         "\nИЗМЕНЕНИЯ:\n"
         f"{diff_summary}"
     )
+
+
+
+# ══════════════════════════════════════════════════════════════════
+# МУЛЬТИФАЙЛОВЫЙ РЕЖИМ (автономный агент сам выбирает файлы)
+# ══════════════════════════════════════════════════════════════════
+
+def explore_prompt(task: str, tree: str) -> str:
+    """Просит модель выбрать файлы для чтения. Ответ — строгий JSON."""
+    return (
+        "Тебе дана задача и дерево файлов проекта. Выбери файлы, которые "
+        "нужно ПРОЧИТАТЬ, чтобы понять и решить задачу. Бери только "
+        "релевантные (обычно 1–8 файлов), не весь проект.\n"
+        "Ответь СТРОГО валидным JSON без markdown и пояснений, формат:\n"
+        '{"files": ["путь/файл1.py", "путь/файл2.py"]}\n'
+        "\nЗАДАЧА:\n"
+        f"{task}\n"
+        "\nДЕРЕВО ФАЙЛОВ ПРОЕКТА:\n"
+        f"{tree}"
+    )
+
+
+def parse_files_list(text: str) -> list[str]:
+    """Достать список путей из ответа explore_prompt (терпимо к обёрткам)."""
+    raw = text.strip()
+    # снять markdown-fence ```json ... ``` если есть
+    fence = re.search(r"```(?:json)?\s*(.+?)```", raw, re.DOTALL)
+    if fence:
+        raw = fence.group(1).strip()
+    # вырезать первый {...} блок, если модель добавила текст вокруг
+    brace = re.search(r"\{.*\}", raw, re.DOTALL)
+    if brace:
+        raw = brace.group(0)
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        return []
+    files = data.get("files") if isinstance(data, dict) else None
+    if not isinstance(files, list):
+        return []
+    return [str(f).strip() for f in files if str(f).strip()]
+
+
+def multifile_edit_prompt(task: str, files_block: str) -> str:
+    """Просит выдать правки нескольких файлов блоками === FILE: путь ===."""
+    return (
+        f"{SAFETY_RULES}\n\n"
+        "Внеси правки согласно задаче. Могут понадобиться несколько файлов "
+        "(в т.ч. новые). Для КАЖДОГО изменяемого/нового файла верни его "
+        "ПОЛНОЕ новое содержимое целиком (не diff) в таком формате:\n"
+        "=== FILE: путь/от/корня.py ===\n"
+        "<полное содержимое файла>\n"
+        "=== FILE: другой/файл.py ===\n"
+        "<полное содержимое>\n"
+        "Не оборачивай блоки в markdown ```. Не добавляй пояснений вне "
+        "блоков. Меняй только нужные файлы, сохраняй стиль и логику.\n"
+        "\nЗАДАЧА:\n"
+        f"{task}\n"
+        "\nТЕКУЩИЕ ФАЙЛЫ:\n"
+        f"{files_block}"
+    )
+
+
+def multifile_fix_prompt(task: str, files_block: str, gate_output: str) -> str:
+    """Фикс-цикл для мультифайла по выводу gate (тот же формат блоков)."""
+    return (
+        f"{SAFETY_RULES}\n\n"
+        "Твои правки не прошли проверки. Исправь ошибки ниже и верни "
+        "ПОЛНОЕ исправленное содержимое всех затронутых файлов в формате:\n"
+        "=== FILE: путь.py ===\n<содержимое>\n"
+        "Без markdown ```, без пояснений вне блоков. Меняй минимум "
+        "нужного для устранения ошибок.\n"
+        "\nЗАДАЧА:\n"
+        f"{task}\n"
+        "\nВЫВОД ПРОВЕРОК (ошибки):\n"
+        f"{gate_output}\n"
+        "\nТЕКУЩИЕ ФАЙЛЫ:\n"
+        f"{files_block}"
+    )
+
+
+def parse_file_blocks(text: str) -> dict[str, str]:
+    """Разобрать ответ модели с блоками === FILE: путь === в {путь: код}."""
+    out: dict[str, str] = {}
+    # допускаем случайный markdown-fence вокруг всего ответа
+    raw = text
+    fence = re.search(r"```(?:\w+)?\s*(.+?)```", raw, re.DOTALL)
+    if fence and "=== FILE:" in fence.group(1):
+        raw = fence.group(1)
+    pattern = re.compile(r"===\s*FILE:\s*(.+?)\s*===\n(.*?)(?=\n===\s*FILE:|\Z)", re.DOTALL)
+    for m in pattern.finditer(raw):
+        path = m.group(1).strip()
+        code = m.group(2).strip("\n")
+        if path:
+            out[path] = code
+    return out
