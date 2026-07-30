@@ -121,8 +121,8 @@ async def index() -> str:
         "</textarea>"
         "<label>Проект</label>"
         f"<select name='project'>{_project_options()}</select>"
-        "<label>Файл в проекте (rel_path)</label>"
-        "<input name='rel_path' required placeholder='handlers/start.py'>"
+        "<label>Файл в проекте (rel_path) — пусто = авто-режим</label>"
+        "<input name='rel_path' placeholder='пусто → агент сам выберет файлы'>"
         "<label>Уровень автономии</label>"
         "<select name='level'>"
         "<option value='0'>L0 — только советует</option>"
@@ -218,7 +218,7 @@ async def settings_view() -> str:
 async def api_task(
     task: str = Form(...),
     project: str = Form(...),
-    rel_path: str = Form(...),
+    rel_path: str = Form(""),
     level: int = Form(1),
 ) -> Response:
     if project not in config.ALLOWED_PROJECTS:
@@ -231,14 +231,24 @@ async def api_task(
 
     try:
         sandbox.prepare_workspace(task_id, project)
-        outcome: core.TaskOutcome = await asyncio.to_thread(
-            core.solve_task,
-            task_id,
-            task,
-            rel_path,
-            model=config.AI_DEFAULT_MODEL,
-            max_iterations=config.AI_MAX_ITERATIONS,
-        )
+        rel = rel_path.strip()
+        if rel:
+            outcome: core.TaskOutcome = await asyncio.to_thread(
+                core.solve_task,
+                task_id,
+                task,
+                rel,
+                model=config.AI_DEFAULT_MODEL,
+                max_iterations=config.AI_MAX_ITERATIONS,
+            )
+        else:
+            outcome = await asyncio.to_thread(
+                core.solve_task_auto,
+                task_id,
+                task,
+                model=config.AI_DEFAULT_MODEL,
+                max_iterations=config.AI_MAX_ITERATIONS,
+            )
     except Exception as exc:  # noqa: BLE001 — любую ошибку показываем в UI
         logger.exception("task %s failed", task_id)
         await database.add_step(
@@ -250,7 +260,7 @@ async def api_task(
     for i, text in enumerate(outcome.steps, start=1):
         await database.add_step(task_id, i, "step", output_summary=text)
     if outcome.diff:
-        await database.add_diff(task_id, rel_path, outcome.diff)
+        await database.add_diff(task_id, rel or "(мультифайл)", outcome.diff)
     if outcome.error:
         await database.add_step(
             task_id, len(outcome.steps) + 1, "error",
