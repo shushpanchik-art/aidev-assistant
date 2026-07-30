@@ -48,6 +48,9 @@ GEMINI_API_KEY_FALLBACK = os.getenv("GEMINI_API_KEY_FALLBACK", "")
 AI_TEXT_MODEL_FLASH = os.getenv("AI_TEXT_MODEL_FLASH", "gemini-2.5-flash")
 AI_TEXT_MODEL_PRO = os.getenv("AI_TEXT_MODEL_PRO", "gemini-2.5-pro")
 AI_DEFAULT_MODEL = os.getenv("AI_DEFAULT_MODEL", "flash")  # flash|pro
+# Имена моделей для резервного AI Studio ключа (иные, чем у Vertex).
+AI_FB_MODEL_FLASH = os.getenv("AI_FB_MODEL_FLASH", "gemini-flash-latest")
+AI_FB_MODEL_PRO = os.getenv("AI_FB_MODEL_PRO", "gemini-pro-latest")
 AI_ESCALATION = os.getenv("AI_ESCALATION", "ask")  # never|ask|auto
 AI_DAILY_BUDGET_USD = _float("AI_DAILY_BUDGET_USD", 3.0)
 AI_MAX_ITERATIONS = _int("AI_MAX_ITERATIONS", 4)
@@ -79,3 +82,10 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 def model_name(kind: str) -> str:
     """Вернуть имя модели по ключу 'flash'|'pro'."""
     return AI_TEXT_MODEL_PRO if kind == "pro" else AI_TEXT_MODEL_FLASH
+
+
+def fb_model_name(model_full: str) -> str:
+    """Vertex-имя модели -> имя для AI Studio fallback."""
+    if model_full == AI_TEXT_MODEL_PRO:
+        return AI_FB_MODEL_PRO
+    return AI_FB_MODEL_FLASH
