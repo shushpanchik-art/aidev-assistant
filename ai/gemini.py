@@ -53,7 +53,7 @@ def get_fallback_client() -> genai.Client | None:
     if not config.GEMINI_API_KEY_FALLBACK:
         return None
     if _fallback is None:
-        _fallback = genai.Client(api_key=config.GEMINI_API_KEY_FALLBACK)
+        _fallback = genai.Client(api_key=config.GEMINI_API_KEY_FALLBACK, vertexai=False)
     return _fallback
 
 
@@ -136,8 +136,8 @@ def generate_text(
     for name, client in _clients():
         try:
             resp = _call_with_retry(
-                lambda c=client: c.models.generate_content(
-                    model=model_full,
+                lambda c=client, m=(config.fb_model_name(model_full) if name == "fallback" else model_full): c.models.generate_content(
+                    model=m,
                     contents=prompt,
                     config=types.GenerateContentConfig(
                         temperature=temperature,
@@ -151,11 +151,12 @@ def generate_text(
             if name == "fallback":
                 logger.warning("generate_text: использован резервный ключ")
             in_tok, out_tok = _usage(resp)
+            used_model = config.fb_model_name(model_full) if name == "fallback" else model_full
             return GenResult(
                 text=(resp.text or "").strip(),
                 input_tokens=in_tok,
                 output_tokens=out_tok,
-                model=model_full,
+                model=used_model,
                 via=name,
             )
         except Exception as e:  # noqa: BLE001
