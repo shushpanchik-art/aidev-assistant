@@ -266,3 +266,55 @@ L3 auto-deploy в тестовый инстанс.
 Antigravity CLI как альтернативный движок (headless-совместим по факту разведки; тестовая установка + замер RAM + проверка что использует наши ключи).
 Крэш-алерты в Telegram, дневные сводки стоимости.
 ## 17. ROADMAP / ОТКРЫТЫЕ ВОПРОСЫ
+## ROADMAP — автономный агент-разработчик (план 2025)
+
+ЦЕЛЬ ВЛАДЕЛЬЦА: исключить себя как звено между ИИ и терминалом.
+Владелец: ставит задачу текстом + докидывает контекст (файлы/скрины/буфер).
+Агент: сам находит файлы, правит несколько, гоняет gate, чинит.
+Старшая модель (PRO): ревьюит результат вместо владельца.
+Владелец: только смотрит PR на GitHub и МЕРЖИТ РУКАМИ (единственная точка).
+В прод ничего не уходит без ручного мержа.
+
+ИЗВЕСТНЫЕ ДАННЫЕ (факты кода на 2025):
+- Веб временно на 127.0.0.1:8095 (ручной запуск), юнит целит 8090 —
+  ЗАНЯТ чужим barcode-matcher. Конфликт порта: решить отдельно.
+- Своп: 8 ГБ (/swapfile 2G + /swapfile2 2G + /swapfile3 4G), в fstab.
+  RAM 969 МБ — узкое место; при vision+PRO расширить своп до 12 ГБ.
+- genai 2.13.0 — vision доступен (types.Part.from_bytes для картинок).
+- gate уже МУЛЬТИФАЙЛОВЫЙ: _py_files берёт все .py, проверит N файлов.
+- sandbox.write_file пишет любой rel_path; collect_diff — весь каталог.
+- db.diffs: file_path + add_diff на файл — мультифайл ложится штатно.
+- generate_text берёт prompt:str -> contents=prompt. Для картинок нужен
+  новый generate_multimodal(parts) (старую не трогать).
+- edit/fix_prompt — однофайловые; для мультифайла нужны новые промпты.
+- Модель выбора файлов: L2 автономия, режим B (агент сам решает файлы).
+
+КИРПИЧ 1 — feature/multifile (В РАБОТЕ):
+  agent/explorer.py: project_tree(task_id), read_many(task_id, paths) —
+    read-only обзор через sandbox._resolve_in_task (побег невозможен).
+  ai/prompts.py: explore_prompt(task, tree) -> JSON какие файлы читать;
+    multifile_edit_prompt(task, files) -> блоки === FILE: path ===;
+    парсер блоков.
+  agent/core.py: solve_task_auto(task_id, task): дерево -> выбор файлов ->
+    чтение -> мультиправка -> запись всех -> gate -> фикс-цикл ->
+    collect_diff -> add_diff по каждому. solve_task НЕ удалять.
+  web/app.py: rel_path необязателен; пусто -> solve_task_auto.
+  tests/test_multifile.py: мок gemini, без реальных AI-вызовов.
+
+КИРПИЧ 2 — feature/attachments (ПЛАН):
+  Загрузка txt/спека/скрин + буфер (UploadFile + textarea-вставка).
+  Хранение: новая таблица attachments(task_id, kind, filename, content/path).
+  Vision: generate_multimodal для скринов ("что за ошибка — реши").
+  Подмешивание вложений в контекст задачи.
+
+КИРПИЧ 3 — feature/orchestrator (ПЛАН):
+  Дирижёр FLASH(исполнитель) -> PRO(ревьюер).
+  ai/prompts.py: review_prompt(diff, gate_report) -> вердикт JSON
+    (approved|risks, комментарии).
+  core: после зелёного gate -> PRO ревью -> если approved -> авто-PR.
+  Владелец видит вердикт PRO на /task/{N} + кнопку/авто-PR.
+
+ПРИНЦИПЫ БЕЗОПАСНОСТИ (неизменны):
+- Агент НИКОГДА не получает bash/rm/curl. Только executor allow-list.
+- Всё в песочнице sandbox/<task>/ без .env/БД/логов.
+- Ручной мерж PR — единственный путь в прод.
