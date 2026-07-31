@@ -289,17 +289,18 @@ Antigravity CLI как альтернативный движок (headless-со�
 - edit/fix_prompt — однофайловые; для мультифайла нужны новые промпты.
 - Модель выбора файлов: L2 автономия, режим B (агент сам решает файлы).
 
-КИРПИЧ 1 — feature/multifile (В РАБОТЕ):
-  agent/explorer.py: project_tree(task_id), read_many(task_id, paths) —
-    read-only обзор через sandbox._resolve_in_task (побег невозможен).
-  ai/prompts.py: explore_prompt(task, tree) -> JSON какие файлы читать;
-    multifile_edit_prompt(task, files) -> блоки === FILE: path ===;
-    парсер блоков.
-  agent/core.py: solve_task_auto(task_id, task): дерево -> выбор файлов ->
+КИРПИЧ 1 — feature/multifile (ГОТОВО ✅):
+  agent/explorer.py: project_tree(task_id) + read_many(task_id, paths) —
+    read-only через sandbox._resolve_in_task (побег невозможен). ✅
+  ai/prompts.py: explore_prompt + parse_files_list (JSON выбор файлов);
+    multifile_edit_prompt + parse_file_blocks (=== FILE: path ===). ✅
+  agent/core.py: solve_task_auto(task_id, task) — дерево -> выбор ->
     чтение -> мультиправка -> запись всех -> gate -> фикс-цикл ->
-    collect_diff -> add_diff по каждому. solve_task НЕ удалять.
-  web/app.py: rel_path необязателен; пусто -> solve_task_auto.
-  tests/test_multifile.py: мок gemini, без реальных AI-вызовов.
+    collect_diff -> add_diff. solve_task сохранён. ✅
+  web/app.py: rel_path пусто -> solve_task_auto, иначе -> solve_task. ✅
+  tests/test_multifile.py: 6 тестов, все AI+gate на моках. ✅
+  Доп. фиксы: fallback generate_text (PR #24), mypy-аннотация (PR #26).
+  PR-и: #23 (код), #24 (fallback), #25 (тесты), #26 (mypy).
 
 КИРПИЧ 2 — feature/attachments (ПЛАН):
   Загрузка txt/спека/скрин + буфер (UploadFile + textarea-вставка).
