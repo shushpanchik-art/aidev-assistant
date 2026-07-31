@@ -17,7 +17,8 @@ async def test_init_creates_tables(db_path: str) -> None:
         )
         names = {r[0] for r in await cur.fetchall()}
     expected = {
-        "tasks", "task_steps", "ai_usage", "diffs", "gate_runs", "settings",
+        "tasks", "task_steps", "ai_usage", "diffs", "gate_runs",
+        "settings", "attachments",
     }
     assert expected <= names
 
@@ -76,3 +77,21 @@ async def test_settings_upsert(db_path: str) -> None:
     await database.set_setting("model", "pro", db_path=db_path)
     assert await database.get_setting("model", db_path=db_path) == "pro"
     assert await database.get_setting("nope", "def", db_path=db_path) == "def"
+
+async def test_attachments(db_path: str) -> None:
+    tid = await database.create_task("p", "x", db_path=db_path)
+    aid = await database.add_attachment(
+        tid, "text", "spec.txt", mime="text/plain",
+        content_text="hello", db_path=db_path,
+    )
+    assert aid > 0
+    await database.add_attachment(
+        tid, "image", "scr.png", mime="image/png",
+        content_b64="AAA=", db_path=db_path,
+    )
+    atts = await database.get_attachments(tid, db_path=db_path)
+    assert len(atts) == 2
+    assert atts[0]["kind"] == "text"
+    assert atts[0]["content_text"] == "hello"
+    assert atts[1]["kind"] == "image"
+    assert atts[1]["content_b64"] == "AAA="

@@ -203,6 +203,42 @@ async def get_diffs(task_id: int, *, db_path: str = DB_PATH) -> list[dict[str, A
         return [dict(r) for r in await cur.fetchall()]
 
 
+# --- attachments ---
+
+
+async def add_attachment(
+    task_id: int,
+    kind: str,
+    filename: str,
+    *,
+    mime: str = "",
+    content_text: str | None = None,
+    content_b64: str | None = None,
+    db_path: str = DB_PATH,
+) -> int:
+    async with aiosqlite.connect(db_path) as db:
+        cur = await db.execute(
+            "INSERT INTO attachments "
+            "(task_id, kind, filename, mime, content_text, content_b64) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (task_id, kind, filename, mime, content_text, content_b64),
+        )
+        await db.commit()
+        return int(cur.lastrowid or 0)
+
+
+async def get_attachments(
+    task_id: int, *, db_path: str = DB_PATH
+) -> list[dict[str, Any]]:
+    async with aiosqlite.connect(db_path) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute(
+            "SELECT * FROM attachments WHERE task_id = ? ORDER BY id",
+            (task_id,),
+        )
+        return [dict(r) for r in await cur.fetchall()]
+
+
 # --- gate_runs ---
 
 async def log_gate_run(
