@@ -165,3 +165,59 @@ def generate_text(
     if last_err:
         raise last_err
     return GenResult(text="", input_tokens=0, output_tokens=0, model=model_full, via="none")
+
+
+def generate_multimodal(
+    prompt: str,
+    images: list[tuple[bytes, str]],
+    *,
+    model: str = "flash",
+    temperature: float = 0.4,
+    max_output_tokens: int = 8192,
+    system_instruction: str | None = None,
+) -> GenResult:
+    """Мультимодальная генерация: текст + картинки (vision).
+
+    images: список (данные_байты, mime_type), например (png_bytes, "image/png").
+    Тот же путь primary -> fallback и учёт токенов, что и generate_text.
+    """
+    model_full = _resolve_model(model)
+    parts: list[types.Part] = [types.Part.from_text(text=prompt)]
+    for data, mime in images:
+        parts.append(types.Part.from_bytes(data=data, mime_type=mime))
+    last_err: Exception | None = None
+    for name, client in _clients():
+        try:
+            resp = _call_with_retry(
+                lambda c=client, m=(
+                    config.fb_model_name(model_full) if name == "fallback" else model_full
+                ): c.models.generate_content(
+                    model=m,
+                    contents=parts,
+                    config=types.GenerateContentConfig(
+                        temperature=temperature,
+                        max_output_tokens=max_output_tokens,
+                        system_instruction=system_instruction,
+                    ),
+                ),
+                f"generate_multimodal[{name}]",
+            )
+            if name == "fallback":
+                logger.warning("generate_multimodal: использован резервный ключ")
+            in_tok, out_tok = _usage(resp)
+            used_model = (
+                config.fb_model_name(model_full) if name == "fallback" else model_full
+            )
+            return GenResult(
+                text=(resp.text or "").strip(),
+                input_tokens=in_tok,
+                output_tokens=out_tok,
+                model=used_model,
+                via=name,
+            )
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+            logger.warning("generate_multimodal через %s не удалось: %s", name, e)
+    if last_err:
+        raise last_err
+    return GenResult(text="", input_tokens=0, output_tokens=0, model=model_full, via="none")
