@@ -53,6 +53,17 @@ CREATE TABLE IF NOT EXISTS gate_runs (
     created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS attachments (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id         INTEGER NOT NULL REFERENCES tasks(id),
+    kind            TEXT NOT NULL,
+    filename        TEXT NOT NULL,
+    mime            TEXT NOT NULL DEFAULT '',
+    content_text    TEXT,
+    content_b64     TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS settings (
     key             TEXT PRIMARY KEY,
     value           TEXT NOT NULL
