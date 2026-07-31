@@ -33,7 +33,7 @@ class _FakeGate:
     def __init__(self, passed: bool, red_tools=None):
         self.passed = passed
         self.red_tools = red_tools or []
-        self.steps = []
+        self.steps: list[str] = []
 
     def summary(self) -> str:
         return "OK" if self.passed else "FAIL"
