@@ -69,6 +69,12 @@ def test_solve_task_green_first_try(task, monkeypatch):
     _write(task, "test_ok.py", "def test_ok():\n    assert True\n")
 
     def fake_gen(prompt, **kw):
+        if kw.get("model") == "pro":
+            return gemini.GenResult(
+                text='{"approved": true, "risks": "", "comments": "ok"}',
+                input_tokens=0, output_tokens=0,
+                model="gemini-2.5-pro", via="primary",
+            )
         return gemini.GenResult(
             text="```python\nx = 1\n```",
             input_tokens=10, output_tokens=5, model="gemini-2.5-flash", via="primary",
@@ -102,6 +108,12 @@ def test_acceptance_broken_code_gets_fixed(task, monkeypatch):
     calls = {"n": 0}
 
     def fake_gen(prompt, **kw):
+        if kw.get("model") == "pro":
+            return gemini.GenResult(
+                text='{"approved": true, "risks": "", "comments": "ok"}',
+                input_tokens=0, output_tokens=0,
+                model="gemini-2.5-pro", via="primary",
+            )
         calls["n"] += 1
         if calls["n"] == 1:
             # "правка" оставляет баг нетронутым

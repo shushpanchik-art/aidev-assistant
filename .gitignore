@@ -12,3 +12,4 @@ sandbox/*/
 
 # runtime logs (backups etc.)
 logs/
+tmp
