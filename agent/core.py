@@ -49,6 +49,7 @@ class TaskOutcome:
     output_tokens: int = 0
     error: str = ""
     steps: list[str] = field(default_factory=list)
+    review: dict[str, object] = field(default_factory=dict)
 
 
 def _gate_output(result: gate.GateResult) -> str:
@@ -159,6 +160,19 @@ def solve_task(
     except sandbox.SandboxError as e:  # noqa: BLE001
         logger.warning("collect_diff не удался: %s", e)
 
+    # --- Ревью: PRO выносит вердикт по готовому diff (только при зелёном gate) ---
+    review: dict[str, object] = {}
+    if result.passed and diff:
+        rev = gemini.generate_text(
+            prompts.review_prompt(task, diff, result.summary()),
+            model="pro",
+        )
+        in_tok += rev.input_tokens
+        out_tok += rev.output_tokens
+        review = prompts.parse_review(rev.text)
+        verdict = "одобрено" if review.get("approved") else "с замечаниями"
+        steps.append(f"Ревью (PRO): {verdict}")
+
     return TaskOutcome(
         success=result.passed,
         iterations=iterations,
@@ -168,6 +182,7 @@ def solve_task(
         input_tokens=in_tok,
         output_tokens=out_tok,
         steps=steps,
+        review=review,
     )
 
 
@@ -285,6 +300,19 @@ def solve_task_auto(
     except sandbox.SandboxError as e:  # noqa: BLE001
         logger.warning("collect_diff не удался: %s", e)
 
+    # --- Ревью: PRO выносит вердикт по готовому diff (только при зелёном gate) ---
+    review: dict[str, object] = {}
+    if result.passed and diff:
+        rev = gemini.generate_text(
+            prompts.review_prompt(task, diff, result.summary()),
+            model="pro",
+        )
+        in_tok += rev.input_tokens
+        out_tok += rev.output_tokens
+        review = prompts.parse_review(rev.text)
+        verdict = "одобрено" if review.get("approved") else "с замечаниями"
+        steps.append(f"Ревью (PRO): {verdict}")
+
     return TaskOutcome(
         success=result.passed,
         iterations=iterations,
@@ -294,4 +322,5 @@ def solve_task_auto(
         input_tokens=in_tok,
         output_tokens=out_tok,
         steps=steps,
+        review=review,
     )

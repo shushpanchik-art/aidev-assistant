@@ -86,6 +86,8 @@ def test_solve_auto_writes_multiple_files(task, monkeypatch):
     calls = []
 
     def fake_gen(prompt, **kw):
+        if kw.get("model") == "pro":  # ревью PRO, вне основного счётчика
+            return _gr('{"approved": true, "risks": "", "comments": "ok"}')
         calls.append(prompt)
         if len(calls) == 1:  # explore -> JSON со списком файлов
             return _gr('{"files": ["a.py", "b.py"]}')
@@ -140,6 +142,7 @@ def test_solve_auto_fix_iteration(task, monkeypatch):
         _gr('{"files": ["a.py"]}'),                       # explore
         _gr("=== FILE: a.py ===\nx = broken(\n"),       # первичная правка (битая)
         _gr("=== FILE: a.py ===\nx = 99\n"),            # фикс
+        _gr('{"approved": true}'),                        # ревью PRO
     ])
     gates = iter([_FakeGate(False, ["ruff"]), _FakeGate(True)])
     monkeypatch.setattr(core.gemini, "generate_text", lambda *a, **k: next(seq))
