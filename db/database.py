@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+import json
+
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +30,7 @@ async def _migrate(db: aiosqlite.Connection) -> None:
     """Идемпотентно добавить недостающие колонки в существующие БД."""
     cur = await db.execute("PRAGMA table_info(tasks)")
     cols = {row[1] for row in await cur.fetchall()}
-    for col in ("branch", "pr_url"):
+    for col in ("branch", "pr_url", "review_approved", "review_json"):
         if col not in cols:
             await db.execute(f"ALTER TABLE tasks ADD COLUMN {col} TEXT")
 
@@ -95,6 +97,24 @@ async def set_task_pr(
         await db.execute(
             "UPDATE tasks SET branch = ?, pr_url = ? WHERE id = ?",
             (branch, pr_url, task_id),
+        )
+        await db.commit()
+
+
+async def set_task_review(
+    task_id: int,
+    review: dict[str, Any],
+    *,
+    db_path: str = DB_PATH,
+) -> None:
+    """Сохранить вердикт PRO-ревьюера (approved + весь JSON) для задачи."""
+    approved = 1 if review.get("approved") else 0
+    payload = json.dumps(review, ensure_ascii=False)
+    async with aiosqlite.connect(db_path) as db:
+        await db.execute(
+            "UPDATE tasks SET review_approved = ?, review_json = ? "
+            "WHERE id = ?",
+            (approved, payload, task_id),
         )
         await db.commit()
 

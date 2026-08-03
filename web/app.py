@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 import html
 import logging
 
@@ -193,10 +194,26 @@ async def task_view(task_id: int) -> Response:
         )
     else:
         pr_html = "<p class='muted'>PR доступен после успешного прохождения.</p>"
+    review_html = ""
+    if task.get("review_json"):
+        try:
+            _rev = json.loads(str(task["review_json"]))
+        except (json.JSONDecodeError, ValueError):
+            _rev = {}
+        _ok = task.get("review_approved")
+        _verdict = "✅ одобрено" if _ok else "⚠️ с замечаниями"
+        _risks = html.escape(str(_rev.get("risks", "")))
+        _comments = html.escape(str(_rev.get("comments", "")))
+        review_html = (
+            f"<h2>🤖 Ревью PRO: {_verdict}</h2>"
+            + (f"<p><b>Риски:</b> {_risks}</p>" if _risks else "")
+            + (f"<p><b>Комментарии:</b> {_comments}</p>" if _comments else "")
+        )
     body = (
         f"<p>Статус: <span class='{cls}'>{status}</span></p>"
         f"<p>Проект: {html.escape(str(task.get('project', '')))}</p>"
         f"{pr_html}"
+        f"{review_html}"
         f"<h2>📝 Что сделано</h2><ul>{steps_html}</ul>"
     )
     return HTMLResponse(_page(f"Задача #{task_id}", body))
@@ -346,6 +363,8 @@ async def api_task(
             task_id, len(outcome.steps) + 1, "error",
             output_summary=outcome.error,
         )
+    if outcome.review:
+        await database.set_task_review(task_id, outcome.review)
     await database.update_task_status(
         task_id,
         "done" if outcome.success else "gate_red",

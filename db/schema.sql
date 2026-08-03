@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     model_used      TEXT,
     branch          TEXT,
     pr_url          TEXT,
+    review_approved INTEGER,
+    review_json     TEXT,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     finished_at     TEXT
 );
