@@ -8,6 +8,7 @@
     extract_code(text)      — вытащить код из markdown-блока ответа модели.
     solve_task(...)         — прогнать полный цикл над одним файлом задачи.
     solve_task_auto(...)    — агент сам выбирает файлы (мультифайловый режим).
+    describe_screenshots(...) — vision: скрины -> текстовое описание.
     TaskOutcome             — результат (успех, итерации, финальный gate, diff).
 """
 from __future__ import annotations
@@ -57,6 +58,33 @@ def _gate_output(result: gate.GateResult) -> str:
         if not s.passed and not s.skipped:
             parts.append(f"### {s.tool} (exit {s.exit_code})\n{s.output}")
     return "\n\n".join(parts)
+
+
+def describe_screenshots(
+    images: list[tuple[bytes, str]],
+    task: str,
+    *,
+    model: str = "flash",
+) -> str:
+    """Vision: прогнать скрины через модель, вернуть текстовое описание.
+
+    images: список (данные_байты, mime_type). Пусто -> "" без вызова AI.
+    Описание подмешивается в контекст задачи как обычный текст, поэтому
+    solve_task/solve_task_auto трогать не нужно.
+    """
+    if not images:
+        return ""
+    gen = gemini.generate_multimodal(
+        prompts.describe_screenshot_prompt(task),
+        images,
+        model=model,
+        system_instruction=prompts.SYSTEM_DEVELOPER,
+    )
+    logger.info(
+        "vision describe: %d img, %d in / %d out tokens",
+        len(images), gen.input_tokens, gen.output_tokens,
+    )
+    return gen.text.strip()
 
 
 def solve_task(

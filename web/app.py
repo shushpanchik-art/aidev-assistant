@@ -290,6 +290,25 @@ async def api_task(
             context_texts
         )
 
+    # vision: если есть скрины — описать их текстом и подмешать в задачу
+    _atts = await database.get_attachments(task_id)
+    _imgs = [
+        (base64.b64decode(a["content_b64"]), a["mime"] or "image/png")
+        for a in _atts
+        if a["kind"] == "screenshot" and a.get("content_b64")
+    ]
+    if _imgs:
+        try:
+            desc = await asyncio.to_thread(
+                core.describe_screenshots, _imgs, task,
+                model=config.AI_DEFAULT_MODEL,
+            )
+        except Exception:  # noqa: BLE001 — vision не должен ронять задачу
+            logger.exception("vision describe failed task %s", task_id)
+            desc = ""
+        if desc:
+            task = task + "\n\n=== Описание скринов (vision) ===\n" + desc
+
     try:
         sandbox.prepare_workspace(task_id, project)
         rel = rel_path.strip()
