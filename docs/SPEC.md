@@ -302,7 +302,7 @@ Antigravity CLI как альтернативный движок (headless-со�
   Доп. фиксы: fallback generate_text (PR #24), mypy-аннотация (PR #26).
   PR-и: #23 (код), #24 (fallback), #25 (тесты), #26 (mypy).
 
-КИРПИЧ 2 — feature/attachments (В РАБОТЕ):
+КИРПИЧ 2 — feature/attachments (ГОТОВО, влито в main):
   Загрузка txt/спека/скрин + буфер (UploadFile + textarea-вставка).
   Хранение: таблица attachments(task_id, kind, filename, content/path).
   Vision: generate_multimodal для скринов ("что за ошибка — реши").
@@ -310,15 +310,15 @@ Antigravity CLI как альтернативный движок (headless-со�
   PR-A ✅ (#28): db attachments — schema + CRUD + tests/test_schema.
   PR-B ✅ (#29): ai.generate_multimodal — vision (текст+картинки),
     путь primary->fallback, учёт токенов; tests/test_gemini (ок+fallback).
-  PR-C (ПЛАН): приём файлов в web (UploadFile+textarea) +
+  PR-C: приём файлов в web (UploadFile+textarea) +
     подмешивание вложений в контекст (core/web).
-  PR-D (ПЛАН): vision-ветка в core — скрин -> "реши ошибку".
+  PR-D: vision-ветка в core — скрин -> "реши ошибку".
 
-КИРПИЧ 3 — feature/orchestrator (ПЛАН):
+КИРПИЧ 3 — feature/orchestrator (ГОТОВО, влито в main):
   Дирижёр FLASH(исполнитель) -> PRO(ревьюер).
   ai/prompts.py: review_prompt(diff, gate_report) -> вердикт JSON
     (approved|risks, комментарии).
-  core: после зелёного gate -> PRO ревью -> если approved -> авто-PR.
+  core: после зелёного gate -> PRO ревью -> вердикт в БД (review_json).
   Владелец видит вердикт PRO на /task/{N} + кнопку/авто-PR.
 
 ПРИНЦИПЫ БЕЗОПАСНОСТИ (неизменны):
