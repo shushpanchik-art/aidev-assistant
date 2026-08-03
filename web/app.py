@@ -16,10 +16,11 @@ cookie ``auth`` (для браузера через SSH-туннель). Все 
 from __future__ import annotations
 
 import asyncio
+import base64
 import html
 import logging
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 import config
@@ -114,7 +115,8 @@ async def login_submit(token: str = Form(...)) -> Response:
 @app.get("/", response_class=HTMLResponse, dependencies=[Depends(require_auth)])
 async def index() -> str:
     body = (
-        f"<form method='post' action='/api/task'>"
+        f"<form method='post' action='/api/task' "
+        "enctype='multipart/form-data'>"
         "<label>Задача (простым языком)</label>"
         "<textarea name='task' rows='4' required "
         "placeholder='Например: добавь проверку возраста в handlers/start.py'>"
@@ -131,6 +133,12 @@ async def index() -> str:
         "<option value='2'>L2 — авто-PR при зелёном gate</option>"
         "</select>"
         f"<p class='muted'>Модель по умолчанию: {html.escape(config.AI_DEFAULT_MODEL)}</p>"
+        "<label>Вложения (txt/лог/скрин) — можно несколько</label>"
+        "<input type='file' name='files' multiple "
+        "accept='.txt,.md,.log,image/*'>"
+        "<label>Или вставьте текст (спека/ошибка) из буфера</label>"
+        "<textarea name='pasted_text' rows='3' "
+        "placeholder='Ctrl+V — сюда'></textarea>"
         "<button type='submit'>Поставить задачу</button></form>"
     )
     return _page("Новая задача", body)
@@ -214,12 +222,59 @@ async def settings_view() -> str:
 # --------------------------------------------------------------------------- #
 # API запуска задачи (auth)                                                   #
 # --------------------------------------------------------------------------- #
+_ATTACH_MAX_TEXT = 20000  # символов текст-вложения в контекст
+
+
+async def _store_attachments(
+    task_id: int,
+    files: list[UploadFile],
+    pasted_text: str,
+) -> list[str]:
+    """Сохранить вложения; вернуть текстовые куски для контекста."""
+    texts: list[str] = []
+    pasted = pasted_text.strip()
+    if pasted:
+        await database.add_attachment(
+            task_id, "pasted", "pasted.txt",
+            mime="text/plain", content_text=pasted[:_ATTACH_MAX_TEXT],
+        )
+        texts.append(f"[pasted]\n{pasted[:_ATTACH_MAX_TEXT]}")
+    for up in files:
+        if not up.filename:
+            continue
+        raw = await up.read()
+        if not raw:
+            continue
+        mime = up.content_type or ""
+        if mime.startswith("image/"):
+            b64 = base64.b64encode(raw).decode("ascii")
+            await database.add_attachment(
+                task_id, "screenshot", up.filename,
+                mime=mime, content_b64=b64,
+            )
+        else:
+            try:
+                text = raw.decode("utf-8", errors="replace")
+            except Exception:  # noqa: BLE001
+                text = ""
+            text = text[:_ATTACH_MAX_TEXT]
+            await database.add_attachment(
+                task_id, "text", up.filename,
+                mime=mime or "text/plain", content_text=text,
+            )
+            if text:
+                texts.append(f"[{up.filename}]\n{text}")
+    return texts
+
+
 @app.post("/api/task", dependencies=[Depends(require_auth)])
 async def api_task(
     task: str = Form(...),
     project: str = Form(...),
     rel_path: str = Form(""),
     level: int = Form(1),
+    files: list[UploadFile] = File(default=[]),
+    pasted_text: str = Form(""),
 ) -> Response:
     if project not in config.ALLOWED_PROJECTS:
         raise HTTPException(status_code=400, detail="project not allowed")
@@ -228,6 +283,12 @@ async def api_task(
         project=project, prompt=task, autonomy_level=level
     )
     await database.update_task_status(task_id, "running")
+
+    context_texts = await _store_attachments(task_id, files, pasted_text)
+    if context_texts:
+        task = task + "\n\n=== Вложения ===\n" + "\n".join(
+            context_texts
+        )
 
     try:
         sandbox.prepare_workspace(task_id, project)
