@@ -5,11 +5,11 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=aidev
-Group=aidev
+User=shushpanchik_art
+Group=shushpanchik_art
 WorkingDirectory=/opt/aidev
 EnvironmentFile=/opt/aidev/.env
-ExecStart=/opt/aidev/venv/bin/uvicorn web.app:app --host 127.0.0.1 --port 8090
+ExecStart=/opt/aidev/venv/bin/uvicorn web.app:app --host 127.0.0.1 --port 8095
 Restart=always
 RestartSec=5
 MemoryMax=400M
