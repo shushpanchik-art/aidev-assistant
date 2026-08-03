@@ -24,7 +24,7 @@ def client(db_path, monkeypatch):
     for name in (
         "create_task", "get_task", "update_task_status", "list_tasks",
         "add_step", "get_steps", "add_diff", "today_cost_usd",
-        "set_task_pr",
+        "set_task_pr", "add_attachment", "get_attachments",
     ):
         orig = getattr(database, name)
 
