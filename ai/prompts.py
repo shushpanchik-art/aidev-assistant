@@ -223,6 +223,61 @@ def describe_screenshot_prompt(task: str) -> str:
     )
 
 
+def review_prompt(task: str, diff: str, gate_summary: str) -> str:
+    """PRO-ревьюер оценивает готовый diff после зелёного gate.
+
+    Просит вернуть строгий JSON: одобрено ли, риски и комментарии. Ревьюер
+    НЕ переписывает код, только выносит вердикт для владельца.
+    """
+    return (
+        f"{SAFETY_RULES}\n\n"
+        "Ты senior-ревьюер. Все автоматические проверки (gate) уже пройдены. "
+        "Оцени изменения на соответствие задаче, скрытые баги, риски "
+        "безопасности и обратимость. НЕ переписывай код — только вердикт.\n"
+        "Ответь СТРОГО одним JSON-объектом без текста вокруг:\n"
+        '{"approved": true|false, '
+        '"risks": "краткие риски по-русски", '
+        '"comments": "что стоит учесть владельцу по-русски"}\n'
+        "\nЗАДАЧА:\n"
+        f"{task}\n"
+        "\nРЕЗУЛЬТАТ GATE:\n"
+        f"{gate_summary}\n"
+        "\nDIFF:\n"
+        f"{diff}"
+    )
+
+
+def parse_review(text: str) -> dict[str, object]:
+    """Разобрать ответ review_prompt в dict (терпимо к обёрткам).
+
+    При неудаче парсинга считаем НЕ одобрено (безопасное значение по
+    умолчанию) с пометкой в comments.
+    """
+    fallback: dict[str, object] = {
+        "approved": False,
+        "risks": "",
+        "comments": "не удалось разобрать ответ ревьюера",
+    }
+    raw = text.strip()
+    fence = re.search(r"```(?:json)?\s*(.+?)```", raw, re.DOTALL)
+    if fence:
+        raw = fence.group(1).strip()
+    brace = re.search(r"\{.*\}", raw, re.DOTALL)
+    if brace:
+        raw = brace.group(0)
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        return fallback
+    if not isinstance(data, dict):
+        return fallback
+    return {
+        "approved": bool(data.get("approved", False)),
+        "risks": str(data.get("risks", "")).strip(),
+        "comments": str(data.get("comments", "")).strip(),
+    }
+
+
 def parse_file_blocks(text: str) -> dict[str, str]:
     """Разобрать ответ модели с блоками === FILE: путь === в {путь: код}."""
     out: dict[str, str] = {}

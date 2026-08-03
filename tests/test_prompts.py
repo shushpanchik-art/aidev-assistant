@@ -72,3 +72,41 @@ def test_all_builders_return_nonempty_str() -> None:
     for p in builders:
         assert isinstance(p, str)
         assert len(p) > 20
+
+
+def test_review_prompt_embeds_task_diff_gate() -> None:
+    p = prompts.review_prompt("добавь X", "diff --git a/x", "ruff ✅ pytest ✅")
+    assert "добавь X" in p
+    assert "diff --git a/x" in p
+    assert "ruff ✅ pytest ✅" in p
+    assert "approved" in p
+    assert "json" in p.lower()
+    assert "секрет" in p.lower()
+
+
+def test_parse_review_valid_json() -> None:
+    r = prompts.parse_review(
+        '{"approved": true, "risks": "низкие", "comments": "ок"}'
+    )
+    assert r["approved"] is True
+    assert r["risks"] == "низкие"
+    assert r["comments"] == "ок"
+
+
+def test_parse_review_fenced_json() -> None:
+    r = prompts.parse_review(
+        'вот вердикт:\n```json\n{"approved": false, "risks": "SQL"}\n```'
+    )
+    assert r["approved"] is False
+    assert r["risks"] == "SQL"
+
+
+def test_parse_review_garbage_is_not_approved() -> None:
+    r = prompts.parse_review("это не json вовсе")
+    assert r["approved"] is False
+    assert "разобрать" in str(r["comments"])
+
+
+def test_parse_review_non_dict_is_not_approved() -> None:
+    r = prompts.parse_review("[1, 2, 3]")
+    assert r["approved"] is False
